@@ -1,0 +1,8 @@
+openai
+flask
+langchain
+langchain-openai
+chromadb
+tiktoken
+python-dotenv
+requests

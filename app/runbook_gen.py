@@ -48,7 +48,6 @@ Respond ONLY with valid JSON.
         runbook = json.loads(response.choices[0].message.content)
         runbook_id = str(uuid.uuid4())
 
-        # Save to markdown file
         path = f"data/runbooks/{category}_runbook.md"
         with open(path, "w") as f:
             f.write(f"# {runbook['title']}\n\n")
@@ -57,10 +56,9 @@ Respond ONLY with valid JSON.
             f.write(f"**Steps:**\n{runbook['steps']}\n\n")
             f.write(f"**Prevention:** {runbook['prevention']}\n")
 
-        # Add to live ChromaDB knowledge base
         add_runbook(runbook_id, runbook["title"], runbook["steps"],
                     metadata={"category": category})
         generated.append(runbook["title"])
-        print(f"Generated runbook: {runbook['title']}")
+        print(f"Generated runbook: {runbook['title']} (from {len(tickets)} tickets)")
 
     return generated

@@ -12,7 +12,6 @@ def route_ticket(ticket, classification):
         if runbook:
             return auto_resolve(ticket, runbook)
 
-    # Low confidence or no runbook match — escalate to human
     return {
         "action": "escalated",
         "ticket_id": ticket.id,

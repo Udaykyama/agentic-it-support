@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
-from app.db import init_db
+from app.db import init_db, update_ticket
 from app.ingest import validate_and_normalize
-from app.db import save_ticket, is_duplicate, update_ticket
+from app.db import save_ticket, is_duplicate
 from app.classifier import classify_ticket
 from app.router import route_ticket
 from app.runbook_gen import generate_runbooks
@@ -22,16 +22,10 @@ def ingest_ticket():
 
     save_ticket(ticket)
     classification = classify_ticket(ticket)
-    
-    # Save category back to database after classification
     update_ticket(ticket.id, status="classified", category=ticket.category)
-    
     result = route_ticket(ticket, classification)
-    
-    # Update final status
     final_status = result.get("action", "escalated")
     update_ticket(ticket.id, status=final_status, category=ticket.category)
-    
     return jsonify(result), 201
 
 @app.route("/generate-runbooks", methods=["GET"])
@@ -44,6 +38,16 @@ def list_runbooks():
     import os
     files = os.listdir("data/runbooks")
     return jsonify({"runbooks": files})
+
+@app.route("/stats", methods=["GET"])
+def stats():
+    import sqlite3
+    conn = sqlite3.connect("tickets.db")
+    c = conn.cursor()
+    c.execute("SELECT status, COUNT(*) FROM tickets GROUP BY status")
+    rows = c.fetchall()
+    conn.close()
+    return jsonify({row[0]: row[1] for row in rows})
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,10 +1,10 @@
-# Network Connectivity Issues Runbook
+# Network Connectivity and VPN Issues Runbook
 
-**Problem:** Multiple users are experiencing connectivity issues with internet and VPN services.
+**Problem:** Users are experiencing various connectivity issues related to shared drives, internet access, and VPN connections.
 
-**Root Cause:** Network congestion or misconfiguration affecting both local and remote connections.
+**Root Cause:** The issues are likely stemming from network configuration problems, software misconfigurations, or hardware failures.
 
 **Steps:**
-1. Check the status of the network equipment (routers, switches) in affected areas. 2. For slow WiFi, perform a speed test in room 3B and assess signal strength; consider repositioning access points if necessary. 3. For Ethernet issues, verify the cable and port functionality, and check network settings on the affected device. 4. For VPN issues, gather logs from the user’s device to identify error codes; verify VPN client configuration. 5. Perform a restart of relevant networking devices like routers and switches, and ask users to reconnect. 6. Monitor network performance post-fix to ensure issues are resolved.
+1. For shared drive access issues, verify user permissions and check server status. 2. For slow WiFi in the conference room, assess signal strength and interference, and consider increasing bandwidth or repositioning access points. 3. For no internet connection issues, ensure the device is configured correctly, restart modem and router, and test with alternative devices. 4. For VPN connection drops, check for network stability, consider updating VPN software, and verify firewall settings. 5. For error code 800 when connecting to VPN, check VPN settings and ensure user credentials are correct. 6. For VPN timeout issues, test different networks (WiFi and Ethernet), and reset the VPN connection settings. 7. Document any recurring issues and report to network administration for further review.
 
-**Prevention:** Regularly assess network performance and configuration to identify potential bottlenecks before they impact users.
+**Prevention:** Regularly monitor network performance and conduct routine maintenance on hardware and software configurations.

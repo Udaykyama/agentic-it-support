@@ -1,10 +1,10 @@
-# Access Issues Runbook
+# Access Issues Resolution Runbook
 
-**Problem:** Users are experiencing access issues related to password resets and account lockouts.
+**Problem:** Users are unable to access their accounts due to forgotten passwords, locked accounts, or expired passwords.
 
-**Root Cause:** User password management and account lockout policies.
+**Root Cause:** User accounts are experiencing access issues stemming from forgotten passwords, account locks due to multiple failed login attempts, or expired passwords.
 
 **Steps:**
-1. For 'Can't access shared drive', verify user permissions to the network drive and reassign if necessary. 2. For 'Forgot password', send a password reset link to the user's email. 3. For 'Account locked out', unlock the account using the administrative console and reset the user's password if necessary. 4. For 'Can't log in, password expired', send a password reset link and encourage the user to update their password. 5. For 'Password reset needed', unlock the account and provide a new password or reset link, guiding the user to change it upon next login.
+1. Verify user identity via security questions or alternative email. 2. For 'Forgot password', send a password reset link to the user's registered email. 3. For 'Account locked out', unlock the account manually, then send a password reset link if needed. 4. For 'Password expired', send a password reset link to the user's registered email and guide them to set a new password. 5. Confirm successful password update with the user.
 
-**Prevention:** Implement regular password audits and reminders for password updates to reduce the risk of lockouts.
+**Prevention:** Encourage users to update their passwords regularly and implement two-factor authentication to enhance security.

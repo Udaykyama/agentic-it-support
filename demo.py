@@ -29,7 +29,9 @@ for t in TICKETS:
     r = requests.post(f"{BASE_URL}/ticket", json=t)
     result = r.json()
     action = result.get("action", "unknown").upper()
-    print(f"[{action}] {t['title']}")
+    category = result.get("category", "")
+    subcategory = result.get("subcategory", "")
+    print(f"[{action}] {t['title']} — {category}/{subcategory}")
     time.sleep(1)
 
 print("\n" + "=" * 50)
@@ -39,7 +41,16 @@ print("=" * 50)
 r = requests.get(f"{BASE_URL}/generate-runbooks")
 data = r.json()
 for rb in data.get("generated", []):
-    print(f"Generated: {rb}")
+    print(f"  Generated: {rb}")
+
+print("\n" + "=" * 50)
+print("SYSTEM STATS")
+print("=" * 50)
+
+r = requests.get(f"{BASE_URL}/stats")
+data = r.json()
+for status, count in data.items():
+    print(f"  {status}: {count} tickets")
 
 print("\n" + "=" * 50)
 print("RUNBOOKS IN KNOWLEDGE BASE")

@@ -1,10 +1,10 @@
-# Network Connectivity and VPN Issues Runbook
+# Network Connectivity Issues Runbook
 
-**Problem:** Users are experiencing various connectivity issues related to shared drives, internet access, and VPN connections.
+**Problem:** Users are experiencing various VPN connection and internet access issues.
 
-**Root Cause:** The issues are likely stemming from network configuration problems, software misconfigurations, or hardware failures.
+**Root Cause:** Potential network configuration issues or overloaded VPN server.
 
 **Steps:**
-1. For shared drive access issues, verify user permissions and check server status. 2. For slow WiFi in the conference room, assess signal strength and interference, and consider increasing bandwidth or repositioning access points. 3. For no internet connection issues, ensure the device is configured correctly, restart modem and router, and test with alternative devices. 4. For VPN connection drops, check for network stability, consider updating VPN software, and verify firewall settings. 5. For error code 800 when connecting to VPN, check VPN settings and ensure user credentials are correct. 6. For VPN timeout issues, test different networks (WiFi and Ethernet), and reset the VPN connection settings. 7. Document any recurring issues and report to network administration for further review.
+1. Check the WiFi signal strength and router placement in the conference room. 2. Restart the router and check for any firmware updates. 3. For Ethernet issues, verify the cable connections and replace if necessary. 4. Perform a network reset on the affected device. 5. Investigate the VPN server load and check if there are any ongoing maintenance activities. 6. For VPN timeout issues, make sure the latest VPN client software is installed. 7. Check for any firewall settings or security software that might be interfering with the VPN connection. 8. If error code 800 arises, validate the VPN configuration settings and user credentials.
 
-**Prevention:** Regularly monitor network performance and conduct routine maintenance on hardware and software configurations.
+**Prevention:** Regularly monitor network performance and conduct VPN configuration audits to ensure stability.

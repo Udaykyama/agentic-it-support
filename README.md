@@ -2,6 +2,11 @@
 
 An end-to-end agentic workflow that ingests enterprise support tickets, classifies intent using an LLM, matches against a runbook knowledge base, and either auto-resolves or routes to the correct Tier 2 engineer — built to mirror Microsoft's vision for AI-powered service engineering.
 
+## Dashboard
+
+![NeuralDesk Dashboard](assets/dashboard.png)
+
+
 ## Architecture
 Ticket Intake (Flask API)
 ↓

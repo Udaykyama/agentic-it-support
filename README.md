@@ -87,13 +87,18 @@ GENERATING RUNBOOKS FROM PATTERNS
 Generated: Network Connectivity Issues Runbook
 Generated: Access Issues Runbook
 
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/ticket` | Ingest and route a new ticket |
+| GET | `/tickets` | List all tickets with status and confidence |
 | GET | `/generate-runbooks` | Trigger runbook generation from patterns |
 | GET | `/runbooks` | List all runbooks in knowledge base |
+| GET | `/stats` | Resolution stats breakdown |
+| GET | `/` | Live dashboard UI |
+
 
 ## Project Structure
 

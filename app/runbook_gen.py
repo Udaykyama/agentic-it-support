@@ -1,64 +1,20 @@
-import os
-import json
-import uuid
-from openai import OpenAI
-from dotenv import load_dotenv
-from app.db import get_tickets_by_category
-from app.runbook_kb import add_runbook
+from sqlalchemy import select
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from app.errors import APIError
+from app.ingest import source_fingerprint
+from app.models import Ticket, utcnow
+from datetime import timedelta
 
-CATEGORIES = ["access", "hardware", "software", "network", "other"]
-MIN_CLUSTER_SIZE = 3
 
-def generate_runbooks():
-    generated = []
-    for category in CATEGORIES:
-        tickets = get_tickets_by_category(category, limit=20)
-        if len(tickets) < MIN_CLUSTER_SIZE:
-            continue
-
-        ticket_text = "\n".join([
-            f"- Title: {t[1]}\n  Description: {t[2]}"
-            for t in tickets
-        ])
-
-        prompt = f"""
-You are an IT operations expert. Given these {len(tickets)} support tickets 
-all related to '{category}', write a structured runbook.
-
-Tickets:
-{ticket_text}
-
-Return a JSON object with:
-- title: short runbook name
-- problem: one sentence describing the issue pattern
-- root_cause: most likely root cause
-- steps: numbered step-by-step resolution (as a single string)
-- prevention: one sentence on how to prevent recurrence
-
-Respond ONLY with valid JSON.
-"""
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}
-        )
-        runbook = json.loads(response.choices[0].message.content)
-        runbook_id = str(uuid.uuid4())
-
-        path = f"data/runbooks/{category}_runbook.md"
-        with open(path, "w") as f:
-            f.write(f"# {runbook['title']}\n\n")
-            f.write(f"**Problem:** {runbook['problem']}\n\n")
-            f.write(f"**Root Cause:** {runbook['root_cause']}\n\n")
-            f.write(f"**Steps:**\n{runbook['steps']}\n\n")
-            f.write(f"**Prevention:** {runbook['prevention']}\n")
-
-        add_runbook(runbook_id, runbook["title"], runbook["steps"],
-                    metadata={"category": category})
-        generated.append(runbook["title"])
-        print(f"Generated runbook: {runbook['title']} (from {len(tickets)} tickets)")
-
-    return generated
+def source_tickets(session, tenant_id, category, subcategory, days=30):
+    tickets = session.scalars(
+        select(Ticket).where(
+            Ticket.tenant_id == tenant_id,
+            Ticket.category == category, Ticket.subcategory == subcategory,
+            Ticket.created_at >= utcnow() - timedelta(days=days),
+        ).order_by(Ticket.created_at.desc(), Ticket.id.desc()).limit(10)
+    ).all()
+    if len(tickets) < 3:
+        raise APIError(409, "insufficient_pattern", "At least three matching tickets in the last 30 days are required.")
+    ids = [ticket.id for ticket in tickets]
+    return ids, source_fingerprint(category, subcategory, ids)

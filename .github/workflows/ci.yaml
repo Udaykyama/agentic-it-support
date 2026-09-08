@@ -1,0 +1,189 @@
+name: Test, build, and publish
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: neuraldesk_test
+          POSTGRES_PASSWORD: ci-only-owner-password
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d neuraldesk_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7.4.11-alpine
+        ports:
+          - 6379/tcp
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install application and test dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+      - name: Bootstrap least-privileged integration database
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: neuraldesk_test
+          PGHOST: 127.0.0.1
+          PGPORT: ${{ job.services.postgres.ports[5432] }}
+          PGPASSWORD: ci-only-owner-password
+        run: |
+          set -euo pipefail
+          APP_DB_PASSWORD="$(.venv/bin/python -c 'import secrets; print(secrets.token_hex(32))')"
+          printf '::add-mask::%s\n' "$APP_DB_PASSWORD"
+          export APP_DB_PASSWORD
+          sh docker/postgres/init-runtime-role.sh
+          export MIGRATION_DATABASE_URL="postgresql+psycopg://postgres:${PGPASSWORD}@${PGHOST}:${PGPORT}/${POSTGRES_DB}"
+          .venv/bin/python -m alembic upgrade head
+          printf 'TEST_DATABASE_URL=postgresql+psycopg://neuraldesk_app:%s@%s:%s/%s\n' \
+            "$APP_DB_PASSWORD" "$PGHOST" "$PGPORT" "$POSTGRES_DB" >> "$GITHUB_ENV"
+      - name: Run unit and PostgreSQL/Redis integration tests
+        env:
+          TEST_REDIS_URL: redis://127.0.0.1:${{ job.services.redis.ports[6379] }}/15
+        run: .venv/bin/python -m unittest discover -s tests -v
+
+  build:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4.3.0
+      - name: Validate Compose configuration and shell syntax
+        run: |
+          docker compose --env-file .env.example config --quiet
+          for script in docker/*-entrypoint.sh docker/postgres/*.sh; do
+            sh -n "$script"
+          done
+      - name: Build deployable image without publishing
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: neuraldesk:ci
+          cache-from: type=gha,scope=neuraldesk
+          cache-to: type=gha,mode=max,scope=neuraldesk
+      - name: Check non-root, read-only image and import-time safety
+        run: |
+          docker run --rm --read-only \
+            --tmpfs /run/neuraldesk:mode=0700,uid=10001,gid=10001 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --entrypoint python neuraldesk:ci -c '
+          import os
+          from pathlib import Path
+          import api
+          import app.worker
+          assert os.getuid() == 10001
+          assert callable(api.create_app)
+          for name in (".env", "tickets.db", "chroma_db", "data"):
+              assert not (Path("/app") / name).exists(), name
+          '
+      - name: Generate isolated Compose smoke-test credentials
+        run: |
+          python3 - <<'PY'
+          import os
+          import secrets
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              output.write("NEURALDESK_IMAGE=neuraldesk:ci\n")
+              for name in ("POSTGRES_PASSWORD", "APP_DB_PASSWORD", "REDIS_PASSWORD", "SECRET_KEY", "METRICS_TOKEN"):
+                  value = secrets.token_hex(32)
+                  print(f"::add-mask::{value}")
+                  output.write(f"{name}={value}\n")
+          PY
+      - name: Exercise migrations, health checks, gateway, and replica scaling
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.example up --detach --no-build \
+            --wait --wait-timeout 180 --scale api=2 --scale worker=2
+          docker compose --env-file .env.example exec -T gateway \
+            nginx -c /run/nginx/nginx.conf -t
+          curl --fail --silent --show-error http://localhost:8000/health/ready
+          curl --fail --silent --show-error --output /dev/null http://localhost:8000/api/v1/openapi.json
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            http://localhost:8000/api/v1/me)" = "401"
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            http://localhost:8000/metrics)" = "401"
+          curl --fail --silent --show-error --output /dev/null \
+            -H "Authorization: Bearer ${METRICS_TOKEN}" http://localhost:8000/metrics
+          docker compose --env-file .env.example up --detach --no-build \
+            --wait --wait-timeout 180 --scale api=1 --scale worker=1
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 1 \
+            http://localhost:8000/health/ready
+      - name: Show diagnostic logs on failure
+        if: failure()
+        run: docker compose --env-file .env.example logs --no-color --tail 100
+      - name: Remove isolated CI containers and volumes
+        if: always()
+        run: docker compose --env-file .env.example down --volumes --remove-orphans
+
+  publish:
+    needs: [test, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4.3.0
+      - name: Normalize GHCR image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v6.2.0
+        id: metadata
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=sha,format=long,prefix=sha-
+            type=raw,value=latest
+      - name: Publish tested revision to GHCR
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=neuraldesk
+          cache-to: type=gha,mode=max,scope=neuraldesk

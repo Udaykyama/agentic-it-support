@@ -1,21 +1,23 @@
-import chromadb
-from chromadb.utils import embedding_functions
+from sqlalchemy import select
 
-client = chromadb.PersistentClient(path="./chroma_db")
-ef = embedding_functions.DefaultEmbeddingFunction()
-collection = client.get_or_create_collection("runbooks", embedding_function=ef)
+from app.models import Runbook
 
-def add_runbook(runbook_id, title, steps, metadata=None):
-    collection.upsert(
-        ids=[runbook_id],
-        documents=[f"{title}\n{steps}"],
-        metadatas=[{"title": title, "steps": steps, **(metadata or {})}]
+
+def has_approved_runbook(session, tenant_id, category):
+    return session.scalar(
+        select(Runbook.id).where(
+            Runbook.tenant_id == tenant_id, Runbook.category == category,
+            Runbook.status == "approved", Runbook.embedding.is_not(None),
+        ).limit(1)
+    ) is not None
+
+
+def search_runbook(session, tenant_id, category, embedding, similarity_threshold):
+    distance = Runbook.embedding.cosine_distance(embedding)
+    return session.scalar(
+        select(Runbook).where(
+            Runbook.tenant_id == tenant_id, Runbook.category == category,
+            Runbook.status == "approved", Runbook.embedding.is_not(None),
+            distance <= 1 - similarity_threshold,
+        ).order_by(distance, Runbook.id).limit(1).with_for_update()
     )
-
-def search_runbook(subcategory, description, n_results=1):
-    query = f"{subcategory} {description}"
-    results = collection.query(query_texts=[query], n_results=n_results)
-    if results["ids"][0]:
-        meta = results["metadatas"][0][0]
-        return {"title": meta["title"], "steps": meta["steps"]}
-    return None

@@ -1,0 +1,224 @@
+x-application: &application
+  image: "${NEURALDESK_IMAGE:-neuraldesk:local}"
+  build:
+    context: .
+  init: true
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /run/neuraldesk:size=16m,mode=0700,uid=10001,gid=10001
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - edge
+    - data
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-application-environment: &application-environment
+  APP_ENV: "${APP_ENV:-production}"
+  DATABASE_URL: "${DATABASE_URL:-}"
+  DATABASE_URL_FILE: "${DATABASE_URL_FILE:-}"
+  REDIS_URL: "${REDIS_URL:-}"
+  REDIS_URL_FILE: "${REDIS_URL_FILE:-}"
+  SECRET_KEY: "${SECRET_KEY:-}"
+  SECRET_KEY_FILE: "${SECRET_KEY_FILE:-}"
+  PUBLIC_URL: "${PUBLIC_URL:-http://localhost:8000}"
+  OIDC_ISSUER: "${OIDC_ISSUER:-}"
+  OIDC_CLIENT_ID: "${OIDC_CLIENT_ID:-}"
+  OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET:-}"
+  OIDC_CLIENT_SECRET_FILE: "${OIDC_CLIENT_SECRET_FILE:-}"
+  OIDC_AUDIENCE: "${OIDC_AUDIENCE:-}"
+  OIDC_TENANT_CLAIM: "${OIDC_TENANT_CLAIM:-tenant_id}"
+  OIDC_ROLES_CLAIM: "${OIDC_ROLES_CLAIM:-roles}"
+  METRICS_TOKEN: "${METRICS_TOKEN:-}"
+  METRICS_TOKEN_FILE: "${METRICS_TOKEN_FILE:-}"
+  AI_ENABLED: "${AI_ENABLED:-false}"
+  OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+  OPENAI_API_KEY_FILE: "${OPENAI_API_KEY_FILE:-}"
+  OPENAI_BASE_URL: "${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+  CLASSIFICATION_MODEL: "${CLASSIFICATION_MODEL:-gpt-4o-mini}"
+  EMBEDDING_MODEL: "${EMBEDDING_MODEL:-text-embedding-3-small}"
+  AI_TIMEOUT_SECONDS: "${AI_TIMEOUT_SECONDS:-40}"
+  CONFIDENCE_THRESHOLD: "${CONFIDENCE_THRESHOLD:-0.75}"
+  RUNBOOK_SIMILARITY_THRESHOLD: "${RUNBOOK_SIMILARITY_THRESHOLD:-0.80}"
+  SESSION_LIFETIME_SECONDS: "${SESSION_LIFETIME_SECONDS:-3600}"
+  JOB_LEASE_SECONDS: "${JOB_LEASE_SECONDS:-180}"
+  JOB_MAX_ATTEMPTS: "${JOB_MAX_ATTEMPTS:-3}"
+  WORKER_POLL_SECONDS: "${WORKER_POLL_SECONDS:-2}"
+  RATE_LIMIT_PER_MINUTE: "${RATE_LIMIT_PER_MINUTE:-120}"
+  AI_RATE_LIMIT_PER_MINUTE: "${AI_RATE_LIMIT_PER_MINUTE:-10}"
+  DATABASE_POOL_SIZE: "${DATABASE_POOL_SIZE:-5}"
+  LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+  TRUSTED_PROXY_HOPS: "${TRUSTED_PROXY_HOPS:-1}"
+
+services:
+  gateway:
+    image: nginx:1.28-alpine
+    user: "101:101"
+    entrypoint: ["sh", "/opt/neuraldesk/gateway-entrypoint.sh"]
+    environment:
+      PUBLIC_URL: "${PUBLIC_URL:-http://localhost:8000}"
+    ports:
+      - "127.0.0.1:8000:8080"
+    volumes:
+      - ./docker/nginx.conf.template:/etc/nginx/templates/neuraldesk.conf.template:ro
+      - ./docker/gateway-entrypoint.sh:/opt/neuraldesk/gateway-entrypoint.sh:ro
+    read_only: true
+    tmpfs:
+      - /run/nginx:size=16m,mode=0700,uid=101,gid=101
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/gateway-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    stop_signal: SIGQUIT
+    stop_grace_period: 75s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    <<: *application
+    environment: *application-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "/app/docker/healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 75s
+    restart: unless-stopped
+
+  worker:
+    <<: *application
+    command: ["python", "-m", "app.worker"]
+    environment: *application-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker", "--healthcheck"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 5m
+    restart: unless-stopped
+
+  migrate:
+    <<: *application
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      MIGRATION_DATABASE_URL: "${MIGRATION_DATABASE_URL:-}"
+      MIGRATION_DATABASE_URL_FILE: "${MIGRATION_DATABASE_URL_FILE:-}"
+    networks:
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-neuraldesk}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-}"
+      POSTGRES_PASSWORD_FILE: "${POSTGRES_PASSWORD_FILE:-}"
+      APP_DB_PASSWORD: "${APP_DB_PASSWORD:-}"
+      APP_DB_PASSWORD_FILE: "${APP_DB_PASSWORD_FILE:-}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    stop_grace_period: 60s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7.4.11-alpine
+    user: "redis"
+    entrypoint: ["sh", "/opt/neuraldesk/redis-entrypoint.sh"]
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_PASSWORD_FILE: "${REDIS_PASSWORD_FILE:-}"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./docker/redis-entrypoint.sh:/opt/neuraldesk/redis-entrypoint.sh:ro
+    read_only: true
+    tmpfs:
+      - /run/redis:size=1m,mode=0700,uid=999,gid=1000
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD", "sh", "/opt/neuraldesk/redis-entrypoint.sh", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    stop_grace_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  edge:
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:

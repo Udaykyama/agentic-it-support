@@ -1,6 +1,17 @@
 .env
+.env.*
+!.env.example
+.venv/
 venv/
 __pycache__/
 *.pyc
 chroma_db/
 tickets.db
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+secrets/
+node_modules/
+.playwright-mcp/
+.impeccable/hook.cache.json

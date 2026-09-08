@@ -1,16 +1,15 @@
-from app.db import update_ticket
+from app.db import audit
+from app.errors import APIError
+from app.models import utcnow
 
-def auto_resolve(ticket, runbook):
-    resolution = f"Auto-resolved using runbook: {runbook['title']}\n\n{runbook['steps']}"
-    update_ticket(
-        ticket.id,
-        status="resolved",
-        category=ticket.category,
-        resolution=resolution
-    )
-    return {
-        "action": "auto_resolved",
-        "ticket_id": ticket.id,
-        "runbook_used": runbook["title"],
-        "resolution_summary": runbook["steps"][:200]
-    }
+
+def confirm_resolution(session, ticket, resolution, actor, request_id):
+    if ticket.status == "resolved":
+        if ticket.resolution == resolution:
+            return
+        raise APIError(409, "already_resolved", "This ticket already has a confirmed resolution.")
+    ticket.status = "resolved"
+    ticket.resolution = resolution
+    ticket.resolved_at = utcnow()
+    ticket.error_code = None
+    audit(session, ticket.tenant_id, actor, "ticket_resolved", ticket.id, request_id)

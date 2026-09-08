@@ -1,0 +1,22 @@
+# Allowlist the build context; never send local secrets or legacy data to a builder.
+**
+!Dockerfile
+!requirements.txt
+!api.py
+!alembic.ini
+!app/
+!app/**
+!migrations/
+!migrations/**
+!templates/
+!templates/**
+!static/
+!static/**
+!docker/
+!docker/healthcheck.py
+**/__pycache__/
+**/*.py[cod]
+**/.env*
+**/*.db
+**/*.sqlite*
+**/secrets/

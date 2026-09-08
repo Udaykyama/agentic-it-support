@@ -1,22 +1,16 @@
-from app.runbook_kb import search_runbook
-from app.resolver import auto_resolve
-
-CONFIDENCE_THRESHOLD = 0.75
-
-def route_ticket(ticket, classification):
-    confidence = classification.get("confidence", 0)
-    subcategory = classification.get("subcategory", "")
-
-    if confidence >= CONFIDENCE_THRESHOLD:
-        runbook = search_runbook(subcategory, ticket.description)
-        if runbook:
-            return auto_resolve(ticket, runbook)
-
+def route_ticket(classification, runbook, confidence_threshold, escalation_target):
+    result = {
+        "category": classification.category, "subcategory": classification.subcategory,
+        "confidence": classification.confidence, "error_code": None,
+    }
+    if classification.confidence >= confidence_threshold and runbook is not None:
+        return {
+            **result, "status": "recommended", "runbook_id": runbook.id,
+            "recommendation": runbook.steps, "assigned_to": None,
+            "reason": "approved_runbook_match",
+        }
     return {
-        "action": "escalated",
-        "ticket_id": ticket.id,
-        "reason": "low confidence or no runbook match",
-        "category": ticket.category,
-        "subcategory": subcategory,
-        "assigned_to": "tier2-engineer@company.com"
+        **result, "status": "escalated", "runbook_id": None, "recommendation": None,
+        "assigned_to": escalation_target,
+        "reason": "low_confidence" if classification.confidence < confidence_threshold else "no_relevant_runbook",
     }

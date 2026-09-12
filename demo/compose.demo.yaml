@@ -69,7 +69,7 @@ services:
       <<: *demo-no-proxy
       KC_CACHE: local
       KC_HEALTH_ENABLED: "true"
-      KC_HOSTNAME: "http://localhost:8081"
+      KC_HOSTNAME: "http://127.0.0.1:8081"
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
       KC_LOG_LEVEL: warn

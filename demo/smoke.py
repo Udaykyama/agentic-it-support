@@ -17,7 +17,7 @@ from urllib.request import (
 )
 
 APP_ORIGIN = "http://localhost:8000"
-ISSUER = "http://localhost:8081/realms/runbooksignal-demo"
+ISSUER = "http://127.0.0.1:8081/realms/runbooksignal-demo"
 PASSWORD = "RunbookSignal-Demo!"
 NAMESPACE = uuid.UUID("f50cb8e0-cbe6-4bcf-8c5d-b216a94679a6")
 

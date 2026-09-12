@@ -62,7 +62,7 @@ start() {
     compose exec -T api python /app/demo_seed.py ensure
     printf '\nRunbookSignal synthetic demo is ready:\n'
     printf '  Dashboard: http://localhost:8000\n'
-    printf '  Local identity provider: http://localhost:8081\n'
+    printf '  Local identity provider: http://127.0.0.1:8081\n'
     printf '  Guide: docs/demo.md\n'
     printf '\nNormal start preserves presenter progress. Use %s reset for a clean scenario.\n' "$0"
 }

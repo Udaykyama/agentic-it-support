@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from dotenv import load_dotenv
 
 DEMO_PUBLIC_URL = "http://localhost:8000"
-DEMO_OIDC_ISSUER = "http://localhost:8081/realms/runbooksignal-demo"
+DEMO_OIDC_ISSUER = "http://127.0.0.1:8081/realms/runbooksignal-demo"
 DEMO_OIDC_DISCOVERY_URL = "http://keycloak:8080/realms/runbooksignal-demo/.well-known/openid-configuration"
 DEMO_OPENAI_BASE_URL = "http://model-stub:8080/v1"
 

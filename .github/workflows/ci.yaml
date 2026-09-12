@@ -169,13 +169,37 @@ jobs:
           set -euo pipefail
           keycloak_image='quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54'
           docker image inspect "$keycloak_image" >/dev/null
-          compose=(docker compose --project-name runbooksignal-demo --env-file demo/demo.env \
-            -f compose.yaml -f demo/compose.demo.yaml)
-          test "$("${compose[@]}" port gateway 8080)" = "127.0.0.1:8000"
-          test "$("${compose[@]}" port keycloak 8080)" = "127.0.0.1:8081"
-          test -z "$("${compose[@]}" port model-stub 8080 2>/dev/null || true)"
-          test -z "$("${compose[@]}" port db 5432 2>/dev/null || true)"
-          test -z "$("${compose[@]}" port redis 6379 2>/dev/null || true)"
+          python3 - <<'PY'
+          import json
+          import subprocess
+
+          compose = [
+              "docker", "compose",
+              "--project-name", "runbooksignal-demo",
+              "--env-file", "demo/demo.env",
+              "-f", "compose.yaml",
+              "-f", "demo/compose.demo.yaml",
+          ]
+
+          def bindings(service):
+              container = subprocess.check_output(
+                  [*compose, "ps", "--quiet", service], text=True
+              ).strip()
+              assert container, f"{service} has no running container"
+              details = json.loads(
+                  subprocess.check_output(["docker", "inspect", container], text=True)
+              )[0]
+              return details["HostConfig"]["PortBindings"] or {}
+
+          assert bindings("gateway") == {
+              "8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8000"}]
+          }
+          assert bindings("keycloak") == {
+              "8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8081"}]
+          }
+          for service in ("model-stub", "db", "redis"):
+              assert not {port: value for port, value in bindings(service).items() if value}, service
+          PY
       - name: Exercise browser OIDC and the complete reviewed-knowledge workflow
         run: python3 demo/smoke.py
       - name: Verify normal start preserves presenter progress

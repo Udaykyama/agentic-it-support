@@ -22,7 +22,7 @@ services:
       DEMO_STUB_CONTROL_TOKEN: "${DEMO_STUB_CONTROL_TOKEN}"
       OIDC_DISCOVERY_URL: "${OIDC_DISCOVERY_URL}"
     volumes:
-      - ./demo/seed.py:/opt/runbooksignal-demo/seed.py:ro
+      - ./demo/seed.py:/app/demo_seed.py:ro
     networks:
       - edge
       - data

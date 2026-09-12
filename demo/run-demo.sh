@@ -59,7 +59,7 @@ start() {
     check_runtime
     compose config --quiet
     compose up --build --detach --wait --wait-timeout 300
-    compose exec -T api python /opt/runbooksignal-demo/seed.py ensure
+    compose exec -T api python /app/demo_seed.py ensure
     printf '\nRunbookSignal synthetic demo is ready:\n'
     printf '  Dashboard: http://localhost:8000\n'
     printf '  Local identity provider: http://localhost:8081\n'
@@ -80,7 +80,7 @@ reset() {
         compose stop --timeout 300 worker
     fi
     compose up --build --detach --wait --wait-timeout 300 api keycloak model-stub
-    if compose exec -T api python /opt/runbooksignal-demo/seed.py reset; then
+    if compose exec -T api python /app/demo_seed.py reset; then
         compose up --detach --wait --wait-timeout 120 worker gateway
     else
         fail "Reset failed with intake and workers stopped. Inspect '$0 logs' before retrying."
@@ -96,7 +96,7 @@ case "${1:-start}" in
     seed)
         [ "$#" -eq 1 ] || fail "seed takes no additional arguments."
         check_runtime
-        compose exec -T api python /opt/runbooksignal-demo/seed.py ensure
+        compose exec -T api python /app/demo_seed.py ensure
         ;;
     reset)
         [ "$#" -eq 1 ] || fail "reset takes no additional arguments."

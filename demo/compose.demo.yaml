@@ -84,6 +84,7 @@ services:
       - no-new-privileges:true
     networks:
       - demo-identity
+      - demo-loopback
     healthcheck:
       test:
         - CMD
@@ -145,6 +146,7 @@ services:
 networks:
   demo-identity:
     internal: true
+  demo-loopback:
   demo-model:
     internal: true
 

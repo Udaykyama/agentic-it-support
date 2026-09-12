@@ -4,17 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
-  <title>Sign-in issue — NeuralDesk</title>
+  <title>Sign-in issue — RunbookSignal</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
 </head>
 <body>
   <header class="site-header">
-    <a class="logo" href="/" aria-label="NeuralDesk home">
+    <a class="logo" href="/" aria-label="RunbookSignal home">
       <span class="logo-icon" aria-hidden="true">⚡</span>
-      <span><span class="logo-text">NeuralDesk</span><span class="logo-sub">Agentic IT Support</span></span>
+      <span><span class="logo-text">RunbookSignal</span><span class="logo-sub">Operational knowledge</span></span>
     </a>
   </header>
   <main>
+    {% if demo_mode %}
+    <aside class="demo-notice" aria-labelledby="demo-notice-title">
+      <strong class="demo-label" id="demo-notice-title">Synthetic local demo</strong>
+      <p>This sign-in belongs to a fictional, loopback-only demo environment.</p>
+    </aside>
+    {% endif %}
     <section class="panel auth-panel" aria-labelledby="auth-error-heading">
       <h1 id="auth-error-heading">We couldn’t complete sign-in</h1>
       <p class="error-message">{{ error.message }}</p>
@@ -23,7 +29,7 @@
         <div><dt>Error code</dt><dd>{{ error.code }}</dd></div>
         <div><dt>Request reference</dt><dd>{{ error.request_id }}</dd></div>
       </dl>
-      <div class="actions"><a class="submit-btn button-link" href="/auth/login">Try company SSO again</a><a class="refresh-btn button-link" href="/">Back to NeuralDesk</a></div>
+      <div class="actions"><a class="submit-btn button-link" href="/auth/login">Try company SSO again</a><a class="refresh-btn button-link" href="/">Back to RunbookSignal</a></div>
     </section>
   </main>
 </body>

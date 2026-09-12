@@ -1,8 +1,8 @@
-# NeuralDesk — Agentic IT Support
+# RunbookSignal — recurring-incident intelligence
 
-A shared-company support application with OIDC sign-in, tenant-isolated tickets, reviewed runbooks, and recurring-incident insights. PostgreSQL/pgvector stores the business records and durable jobs; Redis shares browser sessions, rate limits, and worker heartbeats across replicas.
+RunbookSignal helps IT teams find recurring incident patterns and turn reviewed operational knowledge into consistent recommendations. It combines OIDC sign-in, tenant-isolated tickets, human-reviewed runbooks, and recurring-incident insights. PostgreSQL/pgvector stores business records and durable jobs; Redis shares browser sessions, rate limits, and worker heartbeats across replicas.
 
-**Recommendations are not automatic fixes.** NeuralDesk does not execute commands, change devices, or contact an escalation target automatically. An agent or administrator must confirm a resolution. AI processing is disabled until explicitly enabled and approved for the data being sent.
+**Recommendations are not automatic fixes.** RunbookSignal does not execute commands, change devices, or contact an escalation target automatically. An agent or administrator must confirm an actual resolution. AI processing is disabled until explicitly enabled and approved for the data being sent.
 
 ## What it helps teams do
 
@@ -13,6 +13,22 @@ A shared-company support application with OIDC sign-in, tenant-isolated tickets,
 - **Operate without a model provider.** With `AI_ENABLED=false`, intake records a ticket for manual handling and its configured escalation target. No OpenAI key is required. Unclassified new tickets do not yet contribute to category/subcategory recurrence groups.
 
 Insights default to a 14-day window and at least three matching tickets. The ranking is `3 × unresolved + 2 × positive volume increase + current volume`; missing approved coverage is flagged as a knowledge gap, including when a draft still awaits review. Each group links up to five source tickets. Draft generation requires at least three matching tickets from the last 30 days and considers at most ten; it is not an unrestricted request to generate arbitrary procedures.
+
+## Self-contained local sales demo
+
+The synthetic demo requires only a local Docker engine and Docker Compose v2 with `up --wait` support:
+
+```bash
+./demo/run-demo.sh
+```
+
+It starts the normal PostgreSQL/pgvector, Redis, API, worker, and gateway alongside a demo-only Keycloak realm and deterministic local model stub. Both published ports bind to loopback, all records and identities are fictional, and ticket/runbook text is not sent to an external AI provider. A normal start preserves presenter progress; use the explicit reset command before a new walkthrough:
+
+```bash
+./demo/run-demo.sh reset
+```
+
+Follow the [10–15 minute demo guide](docs/demo.md). The [30-day pilot guide](docs/pilot.md) covers prerequisites, discovery, success measures, security/data boundaries, rollout, and known limits. Neither guide configures DNS, hosting, or an external service.
 
 ## Architecture
 
@@ -45,7 +61,7 @@ Only the gateway publishes a host port, bound to `127.0.0.1:8000`. PostgreSQL an
 | `templates/`, `static/` | Authenticated dashboard workflows |
 | `docker/`, `compose.yaml`, `.github/workflows/` | Container runtime, private data services, test/build/GHCR pipeline |
 
-## Quickstart
+## Self-managed quickstart
 
 Prerequisites: Docker Engine/Desktop with Docker Compose v2 supporting `--wait`, an OIDC client you control, and outbound access to its issuer. No authentication-disabled development mode is provided.
 
@@ -86,7 +102,7 @@ Prerequisites: Docker Engine/Desktop with Docker Compose v2 supporting `--wait`,
 
 5. Optionally enable AI after privacy/provider approval: set `AI_ENABLED=true`, supply `OPENAI_API_KEY`, and recreate API and worker containers with `docker compose up -d`. SDK requests time out after 40 seconds by default; job leases are 180 seconds with at most 3 attempts. Existing manually escalated tickets are not automatically reprocessed merely by changing this setting. Before later disabling AI, stop/drain workers or deliberately handle queued work: processing a queued AI job with AI disabled marks it failed.
 
-For scaling, upgrades, legacy imports, backup/restore, and production TLS, use the [deployment guide](docs/deployment.md). All settings and secret-file alternatives are in the [environment reference](docs/environment.md).
+For scaling, upgrades, legacy imports, backup/restore, and production TLS, use the [deployment guide](docs/deployment.md). All settings and secret-file alternatives are in the [environment reference](docs/environment.md). This path is separate from the synthetic demo and never loads its identities, credentials, or local model stub.
 
 ## Authentication and roles
 
@@ -144,9 +160,9 @@ The public, machine-readable contract is [`GET /api/v1/openapi.json`](http://loc
 
 Application errors use `{ "error": { "code": "...", "message": "...", "request_id": "...", "details": {} } }` (`details` is optional). Legacy unversioned business routes return explicit **410 migration errors**, not anonymous access.
 
-## Authenticated demo
+## Authenticated API evaluation client
 
-`demo.py` creates **three real, persisted synthetic VPN tickets** in the company represented by your token. Use a dedicated evaluation tenant, not a production company's history. It requires a genuine **agent/admin access token**; there is no anonymous/default identity. Run it from the checkout after installing the Python requirements as described below; it is not included in the runtime image.
+The existing `demo.py` client remains available for evaluating a separately configured instance with a real OIDC provider. It creates **three persisted synthetic VPN tickets** in the company represented by your token. Use a dedicated evaluation tenant, not a production company's history. It requires a genuine **agent/admin access token**; there is no anonymous/default identity. It is not the self-contained sales demo and is not included in the runtime image.
 
 Store the token in `secrets/demo_token` using your approved IdP/client tooling, then run:
 
@@ -160,7 +176,7 @@ unset NEURALDESK_TOKEN_FILE NEURALDESK_URL
 
 Leave `NEURALDESK_TOKEN` unset when using the file. `NEURALDESK_URL` defaults to `http://localhost:8000`; `--url` overrides it. Remote origins require HTTPS, and the hostname must match the deployed public origin.
 
-The demo honors shared rate limits, polls pending/processing tickets, and prints recurrence/knowledge-gap insights and ticket outcomes. Append `--generate-draft` to request a draft for the **highest-ranked issue in the current company**, which is not necessarily the three tickets just submitted. It prints the durable draft job ID; it never approves a runbook or confirms a resolution. Each invocation creates another three tickets.
+The client honors shared rate limits, polls pending/processing tickets, and prints recurrence/knowledge-gap insights and ticket outcomes. Append `--generate-draft` to request a draft for the **highest-ranked issue in the current company**, which is not necessarily the three tickets just submitted. It prints the durable draft job ID; it never approves a runbook or confirms a resolution. Each invocation creates another three tickets.
 
 AI-dependent classification/drafting still requires the deployment's explicit AI opt-in. In manual mode the new tickets escalate without classification, so these tickets alone will not populate recurrence groups. If processing outlasts the polling window, inspect the printed IDs in the dashboard; the demo does not cancel durable jobs.
 
@@ -174,7 +190,7 @@ python3.12 -m venv .venv
 
 Without test service URLs, PostgreSQL integration tests are explicitly skipped. To exercise forced RLS, pgvector, real Redis, competing workers, and replica behavior, configure an isolated database ending in `_test`, migrate it as an owner, and set non-owner `TEST_DATABASE_URL` plus `TEST_REDIS_URL`; see [validation details](docs/deployment.md#validation-and-ci).
 
-CI is configured to run the unittest suite with PostgreSQL/pgvector and Redis, build the image, and smoke-test Compose health/scaling. Pull requests **do not publish**. Successful trusted pushes to `main` publish `ghcr.io/udaykyama/agentic-it-support` with `sha-<full-commit>` and `latest` tags using `GITHUB_TOKEN`. Deploy a reviewed image digest, not an assumed cloud integration. No cloud deployment or cloud credentials are configured.
+CI runs the unittest suite with PostgreSQL/pgvector and Redis, builds the production image, smoke-tests production Compose health/scaling, and separately exercises the complete local demo through real browser OIDC and the reviewed-knowledge workflow. Pull requests **do not publish**. Successful trusted pushes to `main` publish `ghcr.io/udaykyama/agentic-it-support` with `sha-<full-commit>` and `latest` tags using `GITHUB_TOKEN`. Deploy a reviewed image digest, not an assumed cloud integration. No cloud deployment or cloud credentials are configured.
 
 ## Before production
 

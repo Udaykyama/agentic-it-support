@@ -2,6 +2,8 @@
 
 [`app/config.py`](../app/config.py) is the source of truth. Configuration is validated when the Flask factory starts; there is no import-time application and no authentication-disabled mode. [`compose.yaml`](../compose.yaml) passes application settings explicitly, rather than exposing the entire bootstrap `.env` to API/worker containers.
 
+The self-contained [synthetic sales demo](demo.md) uses its own fixed project, environment file, Compose overlay, local Keycloak realm, and local deterministic model stub. Do not merge `demo/demo.env` into `.env` or use the demo overlay as a deployment template.
+
 Copy [`.env.example`](../.env.example) to `.env` for local evaluation. **Replace all placeholders before the first start.** Protect it with `chmod 600 .env`; never commit it, paste it into an issue, print a resolved Compose configuration into CI logs, or `source` it as executable shell input. `docker compose config --quiet` checks configuration without printing resolved credentials.
 
 ## Application settings
@@ -21,6 +23,8 @@ Defaults below are the **application** defaults. Compose deliberately sets `TRUS
 | `OIDC_AUDIENCE` | Required | Expected API **access-token** audience; may differ from the browser client ID. |
 | `OIDC_TENANT_CLAIM` | `tenant_id` | Literal, flat signed claim key containing the provisioned company ID. Not a JSONPath or an automatically traversed nested key. |
 | `OIDC_ROLES_CLAIM` | `roles` | Literal signed claim key containing a nonempty array of application role strings. |
+| `OIDC_DISCOVERY_URL` | Empty | Internal discovery URL accepted **only** by the fixed, validated synthetic demo. Normal development and production derive discovery from `OIDC_ISSUER`; an override is rejected. |
+| `DEMO_MODE` | `false` | Exactly `true` or `false`. `true` is accepted only with the fixed loopback public URL/issuer, internal demo database/Redis/model endpoints, development mode, and explicit AI enablement. The production Compose file does not pass this setting. |
 | `METRICS_TOKEN` | Required | Independently generated bearer secret, at least 32 characters, for `/metrics`. It is not an OIDC token. Supports `_FILE`. |
 | `AI_ENABLED` | `false` | Exactly `true` or `false` (case-insensitive). Explicit consent to model processing; when false, intake is manual and AI-dependent operations are unavailable. |
 | `OPENAI_API_KEY` | Empty | Required **only** when `AI_ENABLED=true`. Use a provider credential approved for this data. Supports `_FILE`. |
@@ -78,19 +82,25 @@ REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 
 A mounted URL secret must instead contain the **fully resolved URL**; the application does not interpolate `${...}` inside secret files.
 
-## Local demo and integration-test settings
+## Self-contained synthetic demo
 
-These variables are consumed by `demo.py` or the test suite, not by `Settings` or the deployed API/worker. Compose does not pass demo tokens into application containers.
+`./demo/run-demo.sh` always selects `demo/demo.env`, the two explicit Compose files, the fixed `runbooksignal-demo` project, and a local Docker socket. It clears inherited application/bootstrap/Compose variables before invoking Compose and refuses remote Docker endpoints. A normal start only inserts missing stable fixtures; it does not rewrite presenter changes. The explicit `reset` action drains workers before replacing records owned by the two validated synthetic companies and resetting the internal model-stub state.
+
+The committed demo passwords and service values are public fixtures, not secrets. They are safe only within this loopback-only, synthetic environment and must never be reused. Keycloak is published at `127.0.0.1:8081`; the gateway remains at `127.0.0.1:8000`; PostgreSQL, Redis, and the model stub have no host publication.
+
+## Authenticated evaluation client and integration-test settings
+
+These variables are consumed by the separate `demo.py` client or the test suite, not by `Settings` or the deployed API/worker. Compose does not pass evaluation tokens into application containers.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `NEURALDESK_URL` | `http://localhost:8000` | Demo API origin; `--url` overrides it. Must be HTTPS except for loopback HTTP, with no path/credentials/query/fragment. Use the deployment's trusted public hostname. |
+| `NEURALDESK_URL` | `http://localhost:8000` | Evaluation API origin; `--url` overrides it. Must be HTTPS except for loopback HTTP, with no path/credentials/query/fragment. Use the deployment's trusted public hostname. |
 | `NEURALDESK_TOKEN` | Required unless file supplied | Genuine OIDC **agent/admin access token** for the provisioned evaluation company. Not an ID token, metrics token, or application secret. Prefer the file alternative; do not retain tokens in shell history or logs. |
 | `NEURALDESK_TOKEN_FILE` | Unset | Host-side UTF-8 file containing the demo access token; surrounding whitespace is stripped. Leave `NEURALDESK_TOKEN` unset/blank when using this. Protect its ownership/permissions and never commit it. |
 | `TEST_DATABASE_URL` | Unset; PostgreSQL tests skip | Isolated `postgresql+psycopg://` **runtime non-owner** connection whose database name ends in `_test`. Run migrations separately as an owner first. CI uses `neuraldesk_test`; never point tests at production. |
 | `TEST_REDIS_URL` | Unset; PostgreSQL tests skip | Real, disposable/isolated Redis endpoint for integration tests. Both test URLs must be present for this coverage to run. CI uses a runner-only Redis service and database 15. |
 
-The demo loads `.env` without overriding already exported variables. Its `--wait-seconds` argument is positive and defaults to `180`; request timeouts and rate-limit backoff may extend total wall-clock duration. `--generate-draft` optionally queues a draft for the company's highest-ranked issue, **never approval**. Every invocation writes three synthetic tickets. Use an evaluation tenant and see the [demo procedure](../README.md#authenticated-demo); do not assume the `_test` database guard for integration tests also applies to the HTTP demo.
+The evaluation client loads `.env` without overriding already exported variables. Its `--wait-seconds` argument is positive and defaults to `180`; request timeouts and rate-limit backoff may extend total wall-clock duration. `--generate-draft` optionally queues a draft for the company's highest-ranked issue, **never approval**. Every invocation writes three synthetic tickets. Use an evaluation tenant; do not assume the `_test` database guard for integration tests also applies to this HTTP client.
 
 ## Secret files and secret managers
 

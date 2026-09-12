@@ -78,7 +78,10 @@ class IdentityProvider:
             "company",
             client_id=settings.oidc_client_id,
             client_secret=settings.oidc_client_secret,
-            server_metadata_url=f"{settings.oidc_issuer.rstrip('/')}/.well-known/openid-configuration",
+            server_metadata_url=(
+                settings.oidc_discovery_url
+                or f"{settings.oidc_issuer.rstrip('/')}/.well-known/openid-configuration"
+            ),
             client_kwargs={
                 "scope": "openid profile email",
                 "code_challenge_method": "S256",
@@ -94,6 +97,17 @@ class IdentityProvider:
             raise APIError(503, "identity_unavailable", "The sign-in provider is temporarily unavailable.") from error
         if metadata.get("issuer") != self.settings.oidc_issuer:
             raise APIError(503, "identity_configuration_error", "The sign-in provider returned an unexpected issuer.")
+        if self.settings.demo_mode:
+            internal = "http://keycloak:8080/realms/runbooksignal-demo/protocol/openid-connect"
+            public = f"{self.settings.oidc_issuer}/protocol/openid-connect"
+            if (
+                metadata.get("authorization_endpoint") not in {f"{internal}/auth", f"{public}/auth"}
+                or metadata.get("token_endpoint") != f"{internal}/token"
+                or metadata.get("jwks_uri") != f"{internal}/certs"
+            ):
+                raise APIError(503, "identity_configuration_error", "The local demo identity endpoints are unexpected.")
+            metadata["authorization_endpoint"] = f"{public}/auth"
+            self.client.server_metadata["authorization_endpoint"] = f"{public}/auth"
         for field in ("jwks_uri", "authorization_endpoint", "token_endpoint"):
             value = metadata.get(field)
             if not isinstance(value, str):
@@ -200,7 +214,10 @@ def login():
     session["login_started_at"] = time.time()
     current_app.session_interface.regenerate(session)
     try:
-        return identity.client.authorize_redirect(f"{identity.settings.public_url}/auth/callback")
+        parameters = {"prompt": "login"} if identity.settings.demo_mode else {}
+        return identity.client.authorize_redirect(
+            f"{identity.settings.public_url}/auth/callback", **parameters,
+        )
     except (OAuthError, RequestException) as error:
         raise APIError(503, "identity_unavailable", "Unable to start sign-in. Try again shortly.") from error
 

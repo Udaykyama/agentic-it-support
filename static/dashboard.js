@@ -35,7 +35,7 @@
   const ticketExplanations = {
     pending: "Submitted and waiting for background processing. No recommendation has been produced yet.",
     processing: "Classification and approved-runbook lookup are in progress. This is not a completed outcome.",
-    recommended: "Advice from a human-approved runbook. These instructions have not been executed or verified by NeuralDesk. An operator must confirm the actual outcome.",
+    recommended: "Advice from a human-approved runbook. These instructions have not been executed or verified by RunbookSignal. An operator must confirm the actual outcome.",
     escalated: "Needs human triage. A routing target is an internal label or email, not confirmation that a notification was delivered.",
     failed: "Processing failed. Your ticket is saved and remains unresolved. Review the error and retry when appropriate.",
     resolved: "An operator explicitly confirmed resolution. Their recorded outcome is shown below.",
@@ -347,13 +347,13 @@
     $("insight-list").replaceChildren(node("p", "no-data", "Recurring issues will appear here after sign-in."));
     $("job-list").replaceChildren(node("p", "no-data", "No jobs tracked in this tab yet."));
     $("cat-breakdown").replaceChildren();
-    $("ring-pct").textContent = "—";
+    $("ring-pct").textContent = "…";
     $("ring-fill").style.strokeDashoffset = "283";
     [
       "stat-total", "stat-resolved", "stat-escalated", "stat-runbooks", "stat-pending",
       "stat-processing", "stat-recommended", "stat-failed", "ticket-count", "runbook-count",
       "tickets-page", "runbooks-page",
-    ].forEach((id) => { $(id).textContent = "—"; });
+    ].forEach((id) => { $(id).textContent = "…"; });
     [
       "app-error", "stats-error", "tickets-error", "runbooks-error", "insights-error",
       "ticket-detail-error", "submit-error", "submit-result", "submission-retry-note",

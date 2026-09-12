@@ -77,3 +77,18 @@ class BootstrapTests(unittest.TestCase):
 
     def test_gateway_rejects_non_http_public_origin(self):
         self.reject("docker/gateway-entrypoint.sh", {"PUBLIC_URL": "file:///etc/passwd"}, "must use http:// or https://")
+
+    def test_production_compose_has_no_demo_services_or_switches(self):
+        content = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+        for value in ("keycloak:", "model-stub:", "DEMO_MODE", "OIDC_DISCOVERY_URL", "runbooksignal-demo"):
+            with self.subTest(value=value):
+                self.assertNotIn(value, content)
+        demo = (ROOT / "demo" / "compose.demo.yaml").read_text(encoding="utf-8")
+        self.assertIn(
+            "quay.io/keycloak/keycloak:26.7.3@sha256:"
+            "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54",
+            demo,
+        )
+        for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+            with self.subTest(proxy=name):
+                self.assertIn(f'{name}: ""', demo)

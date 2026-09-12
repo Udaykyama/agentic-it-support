@@ -14,7 +14,7 @@ def heartbeat_key():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Process durable NeuralDesk jobs")
+    parser = argparse.ArgumentParser(description="Process durable RunbookSignal jobs")
     parser.add_argument("--healthcheck", action="store_true")
     parser.add_argument("--once", action="store_true", help="Process at most one available job")
     args = parser.parse_args()

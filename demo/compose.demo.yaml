@@ -1,0 +1,152 @@
+x-demo-no-proxy: &demo-no-proxy
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  ALL_PROXY: ""
+  FTP_PROXY: ""
+  NO_PROXY: "localhost,127.0.0.1,::1,api,gateway,keycloak,model-stub,db,redis"
+  http_proxy: ""
+  https_proxy: ""
+  all_proxy: ""
+  ftp_proxy: ""
+  no_proxy: "localhost,127.0.0.1,::1,api,gateway,keycloak,model-stub,db,redis"
+
+services:
+  gateway:
+    environment:
+      <<: *demo-no-proxy
+
+  api:
+    environment:
+      <<: *demo-no-proxy
+      DEMO_MODE: "true"
+      DEMO_STUB_CONTROL_TOKEN: "${DEMO_STUB_CONTROL_TOKEN}"
+      OIDC_DISCOVERY_URL: "${OIDC_DISCOVERY_URL}"
+    volumes:
+      - ./demo/seed.py:/opt/runbooksignal-demo/seed.py:ro
+    networks:
+      - edge
+      - data
+      - demo-identity
+      - demo-model
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      model-stub:
+        condition: service_healthy
+
+  worker:
+    environment:
+      <<: *demo-no-proxy
+      DEMO_MODE: "true"
+      OIDC_DISCOVERY_URL: "${OIDC_DISCOVERY_URL}"
+    networks:
+      - edge
+      - data
+      - demo-identity
+      - demo-model
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      model-stub:
+        condition: service_healthy
+
+  migrate:
+    environment:
+      <<: *demo-no-proxy
+
+  db:
+    environment:
+      <<: *demo-no-proxy
+
+  redis:
+    environment:
+      <<: *demo-no-proxy
+
+  keycloak:
+    image: "quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
+    command: ["start-dev", "--import-realm"]
+    environment:
+      <<: *demo-no-proxy
+      KC_CACHE: local
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: "http://localhost:8081"
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_LOG_LEVEL: warn
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./demo/keycloak/runbooksignal-demo-realm.json:/opt/keycloak/data/import/runbooksignal-demo-realm.json:ro
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - demo-identity
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -ec
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000;
+          printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3;
+          grep -q '200 OK' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    stop_grace_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  model-stub:
+    image: runbooksignal-demo-model-stub:local
+    build:
+      context: ./demo/model-stub
+    environment:
+      <<: *demo-no-proxy
+      MODEL_API_KEY: "${OPENAI_API_KEY}"
+      RESET_TOKEN: "${DEMO_STUB_CONTROL_TOKEN}"
+    read_only: true
+    tmpfs:
+      - /tmp:size=1m,mode=0700,uid=10001,gid=10001
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - demo-model
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    stop_grace_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  demo-identity:
+    internal: true
+  demo-model:
+    internal: true
+
+volumes:
+  keycloak_data:

@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt import PyJWKClient
 
 from app.auth import IdentityProvider
+from app.config import DEMO_OIDC_DISCOVERY_URL, DEMO_OIDC_ISSUER, DEMO_PUBLIC_URL
 from app.errors import APIError
 from tests.helpers import AppTestCase
 
@@ -109,6 +110,7 @@ class IdentityTests(AppTestCase):
 
     def test_oidc_pkce_nonce_state_session_rotation_and_replay(self):
         parameters = self.start_login()
+        self.assertNotIn("prompt", parameters)
         token = self.token(audience=self.settings.oidc_client_id, nonce=parameters["nonce"][0])
         with patch.object(self.identity.client, "fetch_access_token", return_value={"id_token": token, "access_token": "opaque"}):
             response = self.client.get("/auth/callback", query_string={"state": parameters["state"][0], "code": "test-code"})
@@ -126,6 +128,45 @@ class IdentityTests(AppTestCase):
         response = self.client.post("/auth/logout", headers={"X-CSRF-Token": me.json["csrf_token"]})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.get("/api/v1/me").status_code, 401)
+
+    def test_demo_login_requires_deliberate_identity_selection(self):
+        settings = replace(
+            self.settings,
+            demo_mode=True,
+            public_url=DEMO_PUBLIC_URL,
+            oidc_issuer=DEMO_OIDC_ISSUER,
+            oidc_discovery_url=DEMO_OIDC_DISCOVERY_URL,
+        )
+        self.identity = IdentityProvider(self.app, settings)
+        internal = "http://keycloak:8080/realms/runbooksignal-demo/protocol/openid-connect"
+        self.identity.client.server_metadata.update({
+            "_loaded_at": time.time(),
+            "issuer": DEMO_OIDC_ISSUER,
+            "authorization_endpoint": f"{internal}/auth",
+            "token_endpoint": f"{internal}/token",
+            "jwks_uri": f"{internal}/certs",
+            "id_token_signing_alg_values_supported": ["RS256"],
+        })
+        self.app.extensions["identity"] = self.identity
+        parameters = self.start_login()
+        self.assertEqual(parameters["prompt"], ["login"])
+        self.assertTrue(parameters["redirect_uri"][0].startswith(DEMO_PUBLIC_URL))
+        self.assertEqual(
+            self.identity.client.server_metadata["authorization_endpoint"],
+            f"{DEMO_OIDC_ISSUER}/protocol/openid-connect/auth",
+        )
+
+    def test_demo_identity_rejects_external_backchannel_metadata(self):
+        self.identity.settings = replace(self.settings, demo_mode=True, oidc_issuer=DEMO_OIDC_ISSUER)
+        self.identity.client.server_metadata.update({
+            "issuer": DEMO_OIDC_ISSUER,
+            "authorization_endpoint": f"{DEMO_OIDC_ISSUER}/protocol/openid-connect/auth",
+            "token_endpoint": "https://external.example/token",
+            "jwks_uri": "https://external.example/certs",
+        })
+        with self.assertRaises(APIError) as result:
+            self.identity.metadata()
+        self.assertEqual(result.exception.code, "identity_configuration_error")
 
     def test_oidc_rejects_nonce_mismatch_and_missing_state(self):
         parameters = self.start_login()

@@ -7,6 +7,11 @@ from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
+DEMO_PUBLIC_URL = "http://localhost:8000"
+DEMO_OIDC_ISSUER = "http://localhost:8081/realms/runbooksignal-demo"
+DEMO_OIDC_DISCOVERY_URL = "http://keycloak:8080/realms/runbooksignal-demo/.well-known/openid-configuration"
+DEMO_OPENAI_BASE_URL = "http://model-stub:8080/v1"
+
 
 def secret(env, name, default=""):
     value, filename = env.get(name), env.get(f"{name}_FILE")
@@ -47,6 +52,8 @@ class Settings:
     oidc_audience: str
     oidc_tenant_claim: str
     oidc_roles_claim: str
+    oidc_discovery_url: str
+    demo_mode: bool
     metrics_token: str = field(repr=False)
     ai_enabled: bool
     openai_api_key: str = field(repr=False)
@@ -86,6 +93,8 @@ class Settings:
             oidc_audience=env.get("OIDC_AUDIENCE", ""),
             oidc_tenant_claim=env.get("OIDC_TENANT_CLAIM", "tenant_id"),
             oidc_roles_claim=env.get("OIDC_ROLES_CLAIM", "roles"),
+            oidc_discovery_url=env.get("OIDC_DISCOVERY_URL", ""),
+            demo_mode=boolean(env, "DEMO_MODE", False),
             metrics_token=secret(env, "METRICS_TOKEN"),
             ai_enabled=boolean(env, "AI_ENABLED", False),
             openai_api_key=secret(env, "OPENAI_API_KEY"),
@@ -142,6 +151,31 @@ class Settings:
         ):
             if not value:
                 raise ValueError(f"{name} is required")
+        if self.demo_mode:
+            expected = (
+                ("APP_ENV", self.environment, "development"),
+                ("PUBLIC_URL", self.public_url, DEMO_PUBLIC_URL),
+                ("OIDC_ISSUER", self.oidc_issuer, DEMO_OIDC_ISSUER),
+                ("OIDC_DISCOVERY_URL", self.oidc_discovery_url, DEMO_OIDC_DISCOVERY_URL),
+                ("OPENAI_BASE_URL", self.openai_base_url, DEMO_OPENAI_BASE_URL),
+            )
+            for name, value, required in expected:
+                if value != required:
+                    raise ValueError(f"{name} must be {required} when DEMO_MODE=true")
+            if not self.ai_enabled:
+                raise ValueError("AI_ENABLED must be true when DEMO_MODE=true")
+            database = urlsplit(self.database_url)
+            if (
+                database.hostname != "db" or database.port != 5432
+                or database.username != "neuraldesk_app"
+                or database.path != "/runbooksignal_demo"
+            ):
+                raise ValueError("DATABASE_URL must target the internal runbooksignal_demo database when DEMO_MODE=true")
+            redis = urlsplit(self.redis_url)
+            if redis.hostname != "redis" or redis.port != 6379 or redis.path != "/0":
+                raise ValueError("REDIS_URL must target the internal demo Redis database when DEMO_MODE=true")
+        elif self.oidc_discovery_url:
+            raise ValueError("OIDC_DISCOVERY_URL is available only when DEMO_MODE=true")
         if self.ai_enabled and not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY is required when AI_ENABLED=true")
         if self.job_lease_seconds < self.ai_timeout_seconds * 2 + 30:

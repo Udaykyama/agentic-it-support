@@ -27,10 +27,13 @@ from app.routes import api
 
 def create_app(settings=None, *, database=None, redis_client=None, identity=None, ai_service=None):
     settings = settings or Settings.from_env()
-    authority = "\0".join((
+    authority_parts = (
         settings.environment, settings.oidc_issuer, settings.oidc_client_id,
         settings.oidc_audience, settings.oidc_tenant_claim, settings.oidc_roles_claim,
-    ))
+    )
+    if settings.demo_mode:
+        authority_parts += (settings.oidc_discovery_url, "demo")
+    authority = "\0".join(authority_parts)
     session_namespace = hmac.new(
         settings.secret_key.encode("utf-8"), authority.encode("utf-8"), hashlib.sha256,
     ).hexdigest()
@@ -96,7 +99,7 @@ def create_app(settings=None, *, database=None, redis_client=None, identity=None
         if request.path.startswith("/auth/") and request.accept_mimetypes.best == "text/html":
             return render_template("auth_error.html", error={
                 "code": error.code, "message": error.message, "request_id": getattr(g, "request_id", None),
-            }), error.status
+            }, demo_mode=settings.demo_mode), error.status
         return error_response(error)
 
     @app.errorhandler(HTTPException)
@@ -120,7 +123,7 @@ def create_app(settings=None, *, database=None, redis_client=None, identity=None
 
     @app.get("/")
     def dashboard():
-        return render_template("dashboard.html")
+        return render_template("dashboard.html", demo_mode=settings.demo_mode)
 
     @app.get("/health/live")
     def live():

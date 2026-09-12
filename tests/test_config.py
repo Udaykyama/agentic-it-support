@@ -2,7 +2,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.config import Settings
+from app.config import (
+    DEMO_OIDC_DISCOVERY_URL,
+    DEMO_OIDC_ISSUER,
+    DEMO_OPENAI_BASE_URL,
+    DEMO_PUBLIC_URL,
+    Settings,
+)
 from tests.helpers import ENV
 
 
@@ -50,3 +56,35 @@ class ConfigTests(unittest.TestCase):
             filename.unlink()
             with self.assertRaises(FileNotFoundError):
                 Settings.from_env(env)
+
+    def test_demo_mode_is_narrowly_pinned_to_internal_services(self):
+        demo = {
+            **ENV,
+            "APP_ENV": "development",
+            "DATABASE_URL": "postgresql+psycopg://neuraldesk_app:demo@db:5432/runbooksignal_demo",
+            "REDIS_URL": "redis://:demo@redis:6379/0",
+            "PUBLIC_URL": DEMO_PUBLIC_URL,
+            "OIDC_ISSUER": DEMO_OIDC_ISSUER,
+            "OIDC_DISCOVERY_URL": DEMO_OIDC_DISCOVERY_URL,
+            "OPENAI_BASE_URL": DEMO_OPENAI_BASE_URL,
+            "DEMO_MODE": "true",
+        }
+        settings = Settings.from_env(demo)
+        self.assertTrue(settings.demo_mode)
+        self.assertEqual(settings.oidc_discovery_url, DEMO_OIDC_DISCOVERY_URL)
+        for change in (
+            {"APP_ENV": "production"},
+            {"PUBLIC_URL": "http://127.0.0.1:8000"},
+            {"OIDC_ISSUER": "http://keycloak:8080/realms/runbooksignal-demo"},
+            {"OIDC_DISCOVERY_URL": "http://attacker.invalid/.well-known/openid-configuration"},
+            {"OPENAI_BASE_URL": "https://api.openai.com/v1"},
+            {"AI_ENABLED": "false", "OPENAI_API_KEY": ""},
+            {"DATABASE_URL": "postgresql+psycopg://neuraldesk_app:demo@external.example/runbooksignal_demo"},
+            {"REDIS_URL": "redis://:demo@external.example:6379/0"},
+        ):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                Settings.from_env({**demo, **change})
+
+    def test_oidc_discovery_override_is_rejected_outside_demo(self):
+        with self.assertRaisesRegex(ValueError, "only when DEMO_MODE"):
+            Settings.from_env({**ENV, "OIDC_DISCOVERY_URL": "https://identity.example/internal-discovery"})

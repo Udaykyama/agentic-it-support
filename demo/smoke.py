@@ -6,6 +6,7 @@ import json
 import time
 import uuid
 from html.parser import HTMLParser
+from http.cookies import SimpleCookie
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 from urllib.request import (
@@ -35,10 +36,26 @@ class RedirectRecorder(HTTPRedirectHandler):
     def __init__(self):
         super().__init__()
         self.urls = []
+        self.cookie_headers = []
+
+    def reset(self):
+        self.urls.clear()
+        self.cookie_headers.clear()
 
     def redirect_request(self, request, file_pointer, code, message, headers, new_url):
         self.urls.append(new_url)
-        return super().redirect_request(request, file_pointer, code, message, headers, new_url)
+        self.cookie_headers.extend(
+            (request.full_url, value) for value in headers.get_all("Set-Cookie", [])
+        )
+        redirected = super().redirect_request(
+            request, file_pointer, code, message, headers, new_url,
+        )
+        if (
+            redirected is not None
+            and urlsplit(request.full_url).hostname != urlsplit(new_url).hostname
+        ):
+            redirected.remove_header("Cookie")
+        return redirected
 
 
 class LoginFormParser(HTMLParser):
@@ -79,9 +96,12 @@ class Browser:
         self.identity = None
 
     def login(self, username, tenant_id, roles, email):
-        self.redirects.urls.clear()
+        self.redirects.reset()
         with self.opener.open(f"{APP_ORIGIN}/auth/login", timeout=20) as response:
             page_url = response.geturl()
+            page_cookie_headers = [
+                (page_url, value) for value in response.headers.get_all("Set-Cookie", [])
+            ]
             page = response.read(262144).decode("utf-8")
         auth_url = next(
             (url for url in self.redirects.urls if url.startswith(f"{ISSUER}/protocol/openid-connect/auth?")),
@@ -99,17 +119,31 @@ class Browser:
         parser = LoginFormParser()
         parser.feed(page)
         check(parser.action, "The Keycloak login form could not be located.")
+        keycloak_cookies = SimpleCookie()
+        issuer_authority = urlsplit(ISSUER).netloc
+        for source_url, header in [*self.redirects.cookie_headers, *page_cookie_headers]:
+            if urlsplit(source_url).netloc == issuer_authority:
+                keycloak_cookies.load(header)
+        cookie_header = "; ".join(
+            f"{name}={morsel.value}"
+            for name, morsel in keycloak_cookies.items()
+            if morsel.value
+        )
+        check(cookie_header, "The Keycloak login form did not set an authentication-session cookie.")
         fields = {
             **parser.fields,
             "username": username,
             "password": PASSWORD,
             "credentialId": parser.fields.get("credentialId", ""),
         }
-        self.redirects.urls.clear()
+        self.redirects.reset()
         request = Request(
             urljoin(page_url, parser.action),
             data=urlencode(fields).encode("utf-8"),
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Cookie": cookie_header,
+            },
             method="POST",
         )
         with self.opener.open(request, timeout=30) as response:

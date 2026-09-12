@@ -85,7 +85,9 @@ jobs:
       - name: Validate Compose configuration and shell syntax
         run: |
           docker compose --env-file .env.example config --quiet
-          for script in docker/*-entrypoint.sh docker/postgres/*.sh; do
+          docker compose --project-name runbooksignal-demo --env-file demo/demo.env \
+            -f compose.yaml -f demo/compose.demo.yaml config --quiet
+          for script in docker/*-entrypoint.sh docker/postgres/*.sh demo/*.sh; do
             sh -n "$script"
           done
       - name: Build deployable image without publishing
@@ -109,7 +111,7 @@ jobs:
           import app.worker
           assert os.getuid() == 10001
           assert callable(api.create_app)
-          for name in (".env", "tickets.db", "chroma_db", "data"):
+          for name in (".env", "tickets.db", "chroma_db", "data", "demo", "demo.py"):
               assert not (Path("/app") / name).exists(), name
           '
       - name: Generate isolated Compose smoke-test credentials
@@ -150,8 +152,99 @@ jobs:
         if: always()
         run: docker compose --env-file .env.example down --volumes --remove-orphans
 
+  demo:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Start the supported synthetic demo
+        run: ./demo/run-demo.sh
+      - name: Exercise the guarded worker-draining reset
+        run: ./demo/run-demo.sh reset
+      - name: Verify pinned identity image and loopback publications
+        run: |
+          set -euo pipefail
+          keycloak_image='quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54'
+          docker image inspect "$keycloak_image" >/dev/null
+          python3 - <<'PY'
+          import json
+          import subprocess
+
+          compose = [
+              "docker", "compose",
+              "--project-name", "runbooksignal-demo",
+              "--env-file", "demo/demo.env",
+              "-f", "compose.yaml",
+              "-f", "demo/compose.demo.yaml",
+          ]
+
+          def bindings(service):
+              container = subprocess.check_output(
+                  [*compose, "ps", "--quiet", service], text=True
+              ).strip()
+              assert container, f"{service} has no running container"
+              details = json.loads(
+                  subprocess.check_output(["docker", "inspect", container], text=True)
+              )[0]
+              return details["HostConfig"]["PortBindings"] or {}
+
+          assert bindings("gateway") == {
+              "8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8000"}]
+          }
+          assert bindings("keycloak") == {
+              "8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8081"}]
+          }
+          for service in ("model-stub", "db", "redis"):
+              assert not {port: value for port, value in bindings(service).items() if value}, service
+          PY
+      - name: Exercise browser OIDC and the complete reviewed-knowledge workflow
+        run: python3 demo/smoke.py
+      - name: Verify normal start preserves presenter progress
+        run: |
+          set -euo pipefail
+          ./demo/run-demo.sh
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          specification = importlib.util.spec_from_file_location(
+              "runbooksignal_demo_smoke", Path("demo/smoke.py")
+          )
+          smoke = importlib.util.module_from_spec(specification)
+          specification.loader.exec_module(smoke)
+
+          browser = smoke.Browser()
+          browser.login(
+              "northstar-admin", "northstar-demo", ["admin"],
+              "admin@northstar.example.com",
+          )
+          _, runbooks = browser.call("/api/v1/runbooks?limit=100")
+          assert any(
+              item["subcategory"] == "vpn_timeout" and item["status"] == "approved"
+              for item in runbooks["runbooks"]
+          )
+          _, tickets = browser.call("/api/v1/tickets?limit=100")
+          assert any(
+              item["title"] == "VPN retry demonstration" and item["status"] == "resolved"
+              for item in tickets["tickets"]
+          )
+          PY
+      - name: Show demo diagnostics on failure
+        if: failure()
+        run: |
+          docker compose --project-name runbooksignal-demo --env-file demo/demo.env \
+            -f compose.yaml -f demo/compose.demo.yaml logs --no-color --tail 150
+      - name: Remove only demo containers and synthetic volumes
+        if: always()
+        run: |
+          docker compose --project-name runbooksignal-demo --env-file demo/demo.env \
+            -f compose.yaml -f demo/compose.demo.yaml down --volumes --remove-orphans
+
   publish:
-    needs: [test, build]
+    needs: [test, build, demo]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20

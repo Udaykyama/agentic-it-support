@@ -261,7 +261,7 @@ def specification(cookie_name):
     }}
     return {
         "openapi": "3.1.0", "info": {
-            "title": "NeuralDesk IT Intelligence API", "version": "1.0.0",
+            "title": "RunbookSignal IT Intelligence API", "version": "1.0.0",
             "description": (
                 "Tenant identity and roles come only from signed claims issued by the configured OIDC provider. "
                 "Companies must be provisioned by an operator. API JWTs require RS256, issuer, audience, subject, issued-at, and expiration. "

@@ -4,18 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark">
-  <title>NeuralDesk — Agentic IT Support</title>
+  <title>RunbookSignal: Recurring incident intelligence</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
   <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
   <header class="site-header">
-    <a class="logo" href="/" aria-label="NeuralDesk home">
+    <a class="logo" href="/" aria-label="RunbookSignal home">
       <span class="logo-icon" aria-hidden="true">⚡</span>
       <span>
-        <span class="logo-text">NeuralDesk</span>
-        <span class="logo-sub">Agentic IT Support</span>
+        <span class="logo-text">RunbookSignal</span>
+        <span class="logo-sub">Operational knowledge</span>
       </span>
     </a>
     <div class="header-right">
@@ -33,10 +33,16 @@
   <main id="main-content" tabindex="-1">
     <p id="app-status" class="app-status" role="status" aria-live="polite" aria-atomic="true"></p>
     <p id="app-error" class="error-message" role="alert" hidden></p>
+    {% if demo_mode %}
+    <aside class="demo-notice" aria-labelledby="demo-notice-title">
+      <strong class="demo-label" id="demo-notice-title">Synthetic local demo</strong>
+      <p>Every company, person, incident, and outcome here is fictional. Model responses come from a deterministic service on this laptop; ticket and runbook text is not sent to an external AI provider.</p>
+    </aside>
+    {% endif %}
 
     <section class="panel auth-panel" id="auth-panel" aria-labelledby="auth-heading">
-      <h1 id="auth-heading">Sign in to NeuralDesk</h1>
-      <p id="auth-message">Use your company account to submit tickets and access human-approved support runbooks. Your workspace is set by your company identity.</p>
+      <h1 id="auth-heading">Sign in to RunbookSignal</h1>
+      <p id="auth-message">Use your company account to review recurring incidents, submit tickets, and access human-approved operational knowledge. Your workspace is set by your company identity.</p>
       <div class="actions">
         <a class="submit-btn button-link" id="login-link" href="/auth/login">Sign in with company SSO</a>
         <button class="refresh-btn" id="auth-retry-btn" type="button" hidden>Check session again</button>
@@ -46,7 +52,7 @@
     </section>
 
     <div id="workspace" hidden>
-      <h1 class="sr-only">Support dashboard</h1>
+      <h1 class="sr-only">RunbookSignal support intelligence dashboard</h1>
       <p class="workspace-scope" id="workspace-scope"></p>
       <p class="notice" id="pipeline-notice" hidden></p>
       <p class="notice" id="permission-notice" hidden></p>
@@ -57,33 +63,33 @@
           <div class="stat-card">
             <span class="stat-icon" aria-hidden="true">📋</span>
             <h2 class="stat-label">Total tickets</h2>
-            <div class="stat-value" id="stat-total">—</div>
+            <div class="stat-value" id="stat-total">…</div>
             <p class="stat-detail">All time in your visible scope</p>
           </div>
           <div class="stat-card">
             <span class="stat-icon" aria-hidden="true">✅</span>
             <h2 class="stat-label">Confirmed resolved</h2>
-            <div class="stat-value" id="stat-resolved">—</div>
+            <div class="stat-value" id="stat-resolved">…</div>
             <p class="stat-detail">Outcome recorded by an operator</p>
           </div>
           <div class="stat-card">
             <span class="stat-icon" aria-hidden="true">⚠️</span>
             <h2 class="stat-label">Escalated</h2>
-            <div class="stat-value" id="stat-escalated">—</div>
+            <div class="stat-value" id="stat-escalated">…</div>
             <p class="stat-detail">Needs human triage</p>
           </div>
           <div class="stat-card">
             <span class="stat-icon" aria-hidden="true">📚</span>
             <h2 class="stat-label">Approved runbooks</h2>
-            <div class="stat-value" id="stat-runbooks">—</div>
+            <div class="stat-value" id="stat-runbooks">…</div>
             <p class="stat-detail" id="runbook-stat-detail">Available for future advice</p>
           </div>
         </div>
         <dl class="status-summary" aria-label="Other ticket states">
-          <div><dt>Submitted</dt><dd id="stat-pending">—</dd></div>
-          <div><dt>Processing</dt><dd id="stat-processing">—</dd></div>
-          <div><dt>Recommended</dt><dd id="stat-recommended">—</dd></div>
-          <div class="failure-count"><dt>Failed</dt><dd id="stat-failed">—</dd></div>
+          <div><dt>Submitted</dt><dd id="stat-pending">…</dd></div>
+          <div><dt>Processing</dt><dd id="stat-processing">…</dd></div>
+          <div><dt>Recommended</dt><dd id="stat-recommended">…</dd></div>
+          <div class="failure-count"><dt>Failed</dt><dd id="stat-failed">…</dd></div>
         </dl>
       </section>
 
@@ -101,7 +107,7 @@
       <div class="main-grid">
         <section class="panel" aria-labelledby="tickets-heading">
           <div class="panel-header">
-            <h2 class="panel-title" id="tickets-heading" tabindex="-1"><span aria-hidden="true">🎫</span> Ticket Feed <span class="panel-count" id="ticket-count">—</span></h2>
+            <h2 class="panel-title" id="tickets-heading" tabindex="-1"><span aria-hidden="true">🎫</span> Ticket Feed <span class="panel-count" id="ticket-count">…</span></h2>
             <div class="filter-control">
               <label for="ticket-status">Status</label>
               <select id="ticket-status" class="form-input compact-input">
@@ -126,7 +132,7 @@
           </div>
           <nav class="pagination" aria-label="Ticket pages">
             <button class="refresh-btn" id="tickets-prev" type="button" disabled>Previous</button>
-            <span id="tickets-page" class="secondary">—</span>
+            <span id="tickets-page" class="secondary">…</span>
             <button class="refresh-btn" id="tickets-next" type="button" disabled>Next</button>
           </nav>
           <section class="ticket-detail" id="ticket-detail" aria-labelledby="ticket-detail-heading" hidden>
@@ -149,19 +155,19 @@
                 <circle class="ring-bg" cx="60" cy="60" r="45"/>
                 <circle class="ring-fill" id="ring-fill" cx="60" cy="60" r="45"/>
               </svg>
-              <div class="ring-center"><div class="ring-pct" id="ring-pct">—</div><div class="ring-label">Confirmed resolved</div></div>
+              <div class="ring-center"><div class="ring-pct" id="ring-pct">…</div><div class="ring-label">Confirmed resolved</div></div>
             </div>
             <p class="panel-note">Confirmed outcomes ÷ all visible tickets. Recommendations alone do not count.</p>
             <div class="cat-breakdown" id="cat-breakdown" aria-label="Ticket categories"></div>
           </section>
           <section class="panel" id="runbooks-panel" aria-labelledby="runbooks-heading">
-            <div class="panel-header"><h2 class="panel-title" id="runbooks-heading" tabindex="-1"><span aria-hidden="true">📖</span> Knowledge Base</h2><span class="panel-count" id="runbook-count">—</span></div>
+            <div class="panel-header"><h2 class="panel-title" id="runbooks-heading" tabindex="-1"><span aria-hidden="true">📖</span> Knowledge Base</h2><span class="panel-count" id="runbook-count">…</span></div>
             <p class="panel-note" id="runbook-policy">Only human-approved, indexed runbooks can provide recommendations.</p>
             <p class="error-message panel-message" id="runbooks-error" role="alert" hidden></p>
             <div class="runbook-list" id="runbook-list" tabindex="0" role="region" aria-label="Runbooks and review content"><p class="no-data">Runbooks will appear here after sign-in.</p></div>
             <nav class="pagination" aria-label="Runbook pages">
               <button class="refresh-btn" id="runbooks-prev" type="button" disabled>Previous</button>
-              <span class="secondary" id="runbooks-page">—</span>
+              <span class="secondary" id="runbooks-page">…</span>
               <button class="refresh-btn" id="runbooks-next" type="button" disabled>Next</button>
             </nav>
           </section>
@@ -194,7 +200,7 @@
       </div>
 
     </div>
-    <footer class="page-footer"><span>NeuralDesk · Company-scoped IT support</span><a href="/api/v1/openapi.json">API reference (JSON)</a></footer>
+    <footer class="page-footer"><span>RunbookSignal · Company-scoped recurring-incident intelligence</span><a href="/api/v1/openapi.json">API reference (JSON)</a></footer>
   </main>
 </body>
 </html>

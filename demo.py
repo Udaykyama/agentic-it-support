@@ -31,7 +31,7 @@ TICKETS = [
 
 def main():
     load_dotenv(override=False)
-    parser = argparse.ArgumentParser(description="Exercise NeuralDesk with an agent/admin access token and synthetic tickets.")
+    parser = argparse.ArgumentParser(description="Exercise RunbookSignal with an agent/admin access token and synthetic tickets.")
     parser.add_argument("--url", default=os.getenv("NEURALDESK_URL", "http://localhost:8000"))
     parser.add_argument("--wait-seconds", type=int, default=180)
     parser.add_argument("--generate-draft", action="store_true", help="Request a draft for the highest-ranked recurring issue")

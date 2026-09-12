@@ -234,9 +234,20 @@ class APITests(AppTestCase):
         self.assertEqual(page["pagination"]["total"], 3)
         document = self.client.get("/api/v1/openapi.json").json
         self.assertEqual(document["openapi"], "3.1.0")
+        self.assertEqual(document["info"]["title"], "RunbookSignal IT Intelligence API")
         for rule in self.app.url_map.iter_rules():
             if rule.rule.startswith("/api/v1/") and rule.rule != "/api/v1/openapi.json":
                 path = rule.rule.replace("<uuid:", "{").replace(">", "}")
                 self.assertIn(path, document["paths"])
                 for method in rule.methods - {"HEAD", "OPTIONS"}:
                     self.assertIn(method.lower(), document["paths"][path])
+
+    def test_synthetic_demo_notice_is_server_gated(self):
+        production_html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("RunbookSignal", production_html)
+        self.assertNotIn("Synthetic local demo", production_html)
+        self.assertNotIn("northstar-admin", production_html)
+        demo_html = self.make_app(demo_mode=True).test_client().get("/").get_data(as_text=True)
+        self.assertIn("Synthetic local demo", demo_html)
+        self.assertIn("deterministic service on this laptop", demo_html)
+        self.assertNotIn("northstar-admin", demo_html)

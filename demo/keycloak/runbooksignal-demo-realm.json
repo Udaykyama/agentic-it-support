@@ -1,0 +1,194 @@
+{
+  "realm": "runbooksignal-demo",
+  "enabled": true,
+  "displayName": "RunbookSignal synthetic local demo",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 14400,
+  "roles": {
+    "client": {
+      "runbooksignal-demo": [
+        {"name": "requester"},
+        {"name": "viewer"},
+        {"name": "agent"},
+        {"name": "admin"}
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "runbooksignal-demo",
+      "name": "RunbookSignal synthetic local demo",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "runbooksignal-demo-client-secret-not-for-reuse",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "http://localhost:8000/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:8000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8000/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "multivalued": "false",
+            "aggregate.attrs": "false"
+          }
+        },
+        {
+          "name": "application_roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "usermodel.clientRoleMapping.clientId": "runbooksignal-demo",
+            "usermodel.clientRoleMapping.rolePrefix": ""
+          }
+        },
+        {
+          "name": "runbooksignal_api_audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "runbooksignal-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "username": "northstar-requester",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Riley",
+      "lastName": "Requester",
+      "email": "requester@northstar.example.com",
+      "attributes": {"tenant_id": ["northstar-demo"]},
+      "credentials": [
+        {"type": "password", "value": "RunbookSignal-Demo!", "temporary": false}
+      ],
+      "clientRoles": {"runbooksignal-demo": ["requester"]}
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "username": "northstar-viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Val",
+      "lastName": "Viewer",
+      "email": "viewer@northstar.example.com",
+      "attributes": {"tenant_id": ["northstar-demo"]},
+      "credentials": [
+        {"type": "password", "value": "RunbookSignal-Demo!", "temporary": false}
+      ],
+      "clientRoles": {"runbooksignal-demo": ["viewer"]}
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000003",
+      "username": "northstar-agent",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Avery",
+      "lastName": "Agent",
+      "email": "agent@northstar.example.com",
+      "attributes": {"tenant_id": ["northstar-demo"]},
+      "credentials": [
+        {"type": "password", "value": "RunbookSignal-Demo!", "temporary": false}
+      ],
+      "clientRoles": {"runbooksignal-demo": ["agent"]}
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000004",
+      "username": "northstar-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Adrian",
+      "lastName": "Admin",
+      "email": "admin@northstar.example.com",
+      "attributes": {"tenant_id": ["northstar-demo"]},
+      "credentials": [
+        {"type": "password", "value": "RunbookSignal-Demo!", "temporary": false}
+      ],
+      "clientRoles": {"runbooksignal-demo": ["admin"]}
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "username": "harbor-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Harper",
+      "lastName": "Admin",
+      "email": "admin@harbor.example.com",
+      "attributes": {"tenant_id": ["harbor-demo"]},
+      "credentials": [
+        {"type": "password", "value": "RunbookSignal-Demo!", "temporary": false}
+      ],
+      "clientRoles": {"runbooksignal-demo": ["admin"]}
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000005",
+      "username": "northstar-requester-viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Casey",
+      "lastName": "Combined",
+      "email": "combined@northstar.example.com",
+      "attributes": {"tenant_id": ["northstar-demo"]},
+      "credentials": [
+        {"type": "password", "value": "RunbookSignal-Demo!", "temporary": false}
+      ],
+      "clientRoles": {"runbooksignal-demo": ["requester", "viewer"]}
+    }
+  ]
+}

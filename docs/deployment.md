@@ -1,6 +1,8 @@
 # Deployment and operations
 
-This repository supplies a cloud-neutral, **single-host Docker Compose baseline**. It does not deploy to a cloud account, provide multi-host failover, or establish production throughput/SLA claims. Start with the [README quickstart](../README.md#quickstart) and [environment reference](environment.md); the procedures below assume valid credentials and a configured OIDC client.
+This repository supplies a cloud-neutral, **single-host Docker Compose baseline**. It does not deploy to a cloud account, provide multi-host failover, or establish production throughput/SLA claims. Start with the [self-managed quickstart](../README.md#self-managed-quickstart) and [environment reference](environment.md); the procedures below assume valid credentials and a configured OIDC client.
+
+The [self-contained synthetic demo](demo.md) and its Compose overlay are a sales/evaluation fixture, not a deployment baseline. Never deploy its public fixture credentials, Keycloak realm, deterministic model stub, or synthetic data.
 
 ## Runtime and trust boundaries
 
